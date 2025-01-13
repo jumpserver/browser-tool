@@ -1,7 +1,6 @@
 import vue from '@vitejs/plugin-vue';
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
-import VueJSX from '@vitejs/plugin-vue-jsx';
 import AutoImport from 'unplugin-auto-import/vite';
 import Components from 'unplugin-vue-components/vite';
 
@@ -29,7 +28,6 @@ export default defineConfig({
     },
     plugins: [
       vue(),
-      VueJSX(),
       AutoImport({
         imports: ['vue']
       }),

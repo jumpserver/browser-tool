@@ -5,7 +5,7 @@ export interface IUserInfo {
 
   display_name: Array<string>;
 
-  avatar_url: string | null;
+  avatar_url: string;
 
   value?: string;
 

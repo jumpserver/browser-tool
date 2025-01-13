@@ -1,53 +1,43 @@
-<template>
-  <n-config-provider
-    :locale="defaultLang === 'zh' ? zhCN : enUS"
-    :theme="defaultTheme === 'dark' ? darkTheme : lightTheme"
-    :class="defaultTheme === 'dark' ? 'theme-dark' : 'theme-light'"
-    :themeOverrides="defaultTheme === 'dark' ? darkThemeOverrides : lightThemeOverrides"
-  >
-    <n-modal-provider>
-      <n-message-provider>
-        <div class="custom-header ele_drag bg-primary border-b-primary border-b">
-          <div class="logo">
-            <img :src="iconImage" alt="" />
-            <span class="title text-primary">JumpServer Client</span>
-          </div>
-        </div>
-        <LoginModal :show-modal="showModal" @close-mask="handleCloseMask" />
-        <router-view />
-      </n-message-provider>
-    </n-modal-provider>
-  </n-config-provider>
-</template>
-
 <script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { darkThemeOverrides, lightThemeOverrides } from './overrides';
+import type { ConfigProviderProps } from 'naive-ui';
+import { createDiscreteApi, darkTheme, enUS, lightTheme, zhCN } from 'naive-ui';
+
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { getProfile } from './api/modals/user';
-import { useUserStore } from './store/module/userStore';
-import { darkThemeOverrides, lightThemeOverrides } from './overrides';
-import { computed, watch, onBeforeUnmount, onMounted, ref } from 'vue';
-import { darkTheme, enUS, zhCN, lightTheme, createDiscreteApi } from 'naive-ui';
+import { getProfile } from '@renderer/api/modals/user';
+import { useUserStore } from '@renderer/store/module/userStore';
+import { getSystemSetting } from '@renderer/api/modals/setting';
+import { useSettingStore } from '@renderer/store/module/settingStore';
 
-import { useElectronConfig } from './hooks/useElectronConfig';
-import { getIconImage, getAvatarImage } from './utils/common';
+import { Conf } from 'electron-conf/renderer';
 
-import type { ConfigProviderProps } from 'naive-ui';
+import mittBus from '@renderer/eventBus';
+import LoginModal from '@renderer/components/LoginModal/index.vue';
 
-import mittBus from './eventBus';
-import LoginModal from './components/LoginModal/index.vue';
-
-const { t, locale } = useI18n();
-const { getDefaultSetting, setDefaultSetting } = useElectronConfig();
-
+const conf = new Conf();
 const router = useRouter();
-const userStore = useUserStore();
+const { t, locale } = useI18n();
 
-const showModal = ref(false);
+const iconImage = ref('');
 const defaultLang = ref('');
 const defaultTheme = ref('');
-const iconImage = ref<string | null>(null);
-const avatarImage = ref<string | null>(null);
+const showModal = ref(false);
+
+const userStore = useUserStore();
+const settingStore = useSettingStore();
+
+let avatarImage: string;
+
+conf.get('defaultSetting').then(res => {
+  if (res) {
+    // @ts-ignore
+    defaultTheme.value = res?.theme;
+    // @ts-ignore
+    defaultLang.value = res?.language;
+  }
+});
 
 const configProviderPropsRef = computed<ConfigProviderProps>(() => ({
   theme: defaultTheme.value === 'light' ? lightTheme : darkTheme
@@ -70,6 +60,8 @@ const { notification } = createDiscreteApi(['notification'], {
  * @description 切换语言
  */
 const handleLangChange = async (lang: string) => {
+  const currentSettings = (await conf.get('defaultSetting')) as Record<string, any>;
+
   switch (lang) {
     case 'zh': {
       defaultLang.value = 'en';
@@ -81,7 +73,10 @@ const handleLangChange = async (lang: string) => {
     }
   }
 
-  setDefaultSetting({ language: defaultLang.value });
+  await conf.set('defaultSetting', {
+    ...currentSettings,
+    language: defaultLang.value
+  });
 };
 
 /**
@@ -89,6 +84,8 @@ const handleLangChange = async (lang: string) => {
  * @param theme
  */
 const handleThemeChange = async (theme: string) => {
+  const currentSettings = (await conf.get('defaultSetting')) as Record<string, any>;
+
   switch (theme) {
     case 'light': {
       defaultTheme.value = 'dark';
@@ -99,8 +96,6 @@ const handleThemeChange = async (theme: string) => {
       break;
     }
   }
-
-  setDefaultSetting({ theme: defaultTheme.value });
   window.electron.ipcRenderer.send('update-titlebar-overlay', defaultTheme.value);
   await conf.set('defaultSetting', {
     ...currentSettings,
@@ -135,6 +130,24 @@ const handleRemoveAccount = () => {
 };
 
 /**
+ * @description 获取 Logo
+ */
+const getIconImage = async () => {
+  const res = await import('@renderer/assets/Logo.svg');
+
+  iconImage.value = res.default;
+};
+
+/**
+ * @description 获取头像
+ */
+const getAvatarImage = async () => {
+  const res = await import('@renderer/assets/avatar.png');
+
+  avatarImage = res.default;
+};
+
+/**
  * @description 关闭遮罩
  */
 const handleCloseMask = () => {
@@ -142,39 +155,40 @@ const handleCloseMask = () => {
 };
 
 onMounted(async () => {
+  await getIconImage();
+  await getAvatarImage();
+
   try {
-    iconImage.value = await getIconImage();
-    avatarImage.value = await getAvatarImage();
+    const res = await getProfile();
 
-    const { theme, language } = await getDefaultSetting();
+    if (res) {
+      notification.create({
+        type: 'success',
+        content: t('Message.AuthenticatedSuccess'),
+        duration: 2000
+      });
 
-    defaultTheme.value = theme;
-    defaultLang.value = language;
-
-    // 如果有 token 才去验证
-    if (userStore.token) {
-      try {
-        await getProfile();
-      } catch (e: any) {
-        const status = e.response?.status;
-
-        if (status === 401 || status === 403) {
-          userStore.setToken('');
-          showModal.value = true;
-        }
-      }
+      await router.push({ name: 'Linux' });
     }
-  } catch (e) {
-    notification.create({
-      type: 'info',
-      content: t('Message.GetDefaultSettingFailed'),
-      duration: 2000
-    });
+
+    const setting = await getSystemSetting();
+    if (setting) {
+      settingStore.setRdpClientOption(setting.graphics.rdp_client_option);
+      settingStore.setKeyboardLayout(setting.graphics.keyboard_layout);
+      settingStore.setRdpSmartSize(setting.graphics.rdp_smart_size);
+      settingStore.setRdpColorQuality(setting.graphics.rdp_color_quality);
+    }
+  } catch (e: any) {
+    const status = e.response?.status;
+
+    if (status === 401 || status === 403) {
+      userStore.setToken('');
+      showModal.value = true;
+    }
   }
 
-  // 检查是否需要显示登录框
-  if (!userStore.token || (userStore.userInfo && userStore.userInfo.length <= 0))
-    showModal.value = true;
+  // @ts-ignore
+  if (userStore?.userInfo.length <= 0) showModal.value = true;
 
   window.electron.ipcRenderer.on('set-token', async (_e, token: string) => {
     if (token) {
@@ -188,7 +202,7 @@ onMounted(async () => {
           token,
           username: res?.username,
           display_name: res?.system_roles.map((item: any) => item.display_name),
-          avatar_url: avatarImage.value,
+          avatar_url: avatarImage,
           currentSite: userStore.currentSite
         });
 
@@ -196,7 +210,7 @@ onMounted(async () => {
           token,
           username: res?.username,
           display_name: res?.system_roles.map((item: any) => item.display_name),
-          avatar_url: avatarImage.value,
+          avatar_url: avatarImage,
           currentSite: userStore.currentSite
         });
 
@@ -209,6 +223,14 @@ onMounted(async () => {
 
           mittBus.emit('search');
           await router.push({ name: 'Linux' });
+
+          const setting = await getSystemSetting();
+          if (setting) {
+            settingStore.setRdpClientOption(setting.graphics.rdp_client_option);
+            settingStore.setKeyboardLayout(setting.graphics.keyboard_layout);
+            settingStore.setRdpSmartSize(setting.graphics.rdp_smart_size);
+            settingStore.setRdpColorQuality(setting.graphics.rdp_color_quality);
+          }
         }
       } catch (e) {
         showModal.value = false;
@@ -226,8 +248,31 @@ onBeforeUnmount(() => {
   mittBus.off('addAccount', handleAddAccount);
   mittBus.off('changeLang', handleLangChange);
   mittBus.off('changeTheme', handleThemeChange);
+  mittBus.off('removeAccount', handleRemoveAccount);
 });
 </script>
+
+<template>
+  <n-config-provider
+    :locale="defaultLang === 'zh' ? zhCN : enUS"
+    :theme="defaultTheme === 'dark' ? darkTheme : lightTheme"
+    :class="defaultTheme === 'dark' ? 'theme-dark' : 'theme-light'"
+    :themeOverrides="defaultTheme === 'dark' ? darkThemeOverrides : lightThemeOverrides"
+  >
+    <n-modal-provider>
+      <n-message-provider>
+        <div class="custom-header ele_drag bg-primary border-b-primary border-b">
+          <div class="logo">
+            <img :src="iconImage" alt="" />
+            <span class="title text-primary">JumpServer Client</span>
+          </div>
+        </div>
+        <LoginModal :show-modal="showModal" @close-mask="handleCloseMask" />
+        <router-view />
+      </n-message-provider>
+    </n-modal-provider>
+  </n-config-provider>
+</template>
 
 <style scoped lang="scss">
 .n-config-provider {

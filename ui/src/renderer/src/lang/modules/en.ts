@@ -49,9 +49,7 @@ export default {
     Confirm: 'Confirm',
     UsernamePlaceholder: 'Please enter the username',
     InputAccountPassword: 'Manual input',
-    None: 'None',
-    Address: 'Address',
-    Connectability: 'Connectability'
+    None: 'None'
   },
   Dialog: {
     'Save&Default': 'Save And Default',
