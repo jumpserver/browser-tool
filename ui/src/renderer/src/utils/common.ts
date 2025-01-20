@@ -50,12 +50,11 @@ export function cleanRDPParams(params): Object {
 
 export function getConnectOption(params): Object {
   const connectOption = {};
-  const { charset, is_backspace_as_ctrl_h, rdp_resolution, keyboard_layout } = params;
+  const { charset, is_backspace_as_ctrl_h, rdp_resolution, rdp_connection_speed, keyboard_layout } =
+    params;
 
-  if (rdp_resolution && rdp_resolution.indexOf('x') > -1) {
-    connectOption['resolution'] = rdp_resolution;
-  }
-
+  connectOption['rdp_connection_speed'] = rdp_connection_speed;
+  connectOption['resolution'] = rdp_resolution;
   connectOption['charset'] = charset;
   connectOption['is_backspace_as_ctrl_h'] = is_backspace_as_ctrl_h;
   connectOption['keyboard_layout'] = keyboard_layout;

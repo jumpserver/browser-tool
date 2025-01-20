@@ -39,6 +39,8 @@ export interface ISetting {
 
   rdp_client_option: string[];
 
+  rdp_connection_speed: string;
+
   rdp_color_quality: string;
 
   rdp_smart_size: string;

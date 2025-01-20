@@ -2,6 +2,7 @@ import request from '../index';
 import { cleanRDPParams, getConnectOption } from '@renderer/utils/common';
 import { useSettingStore } from '@renderer/store/module/settingStore';
 import { useUserStore } from '@renderer/store/module/userStore';
+import { getSystemSetting } from '@renderer/api/modals/setting';
 
 export const getFavoriteAssets = (params: object) => {
   return request.get('/api/v1/perms/users/self/nodes/favorite/assets/', params);
@@ -23,6 +24,14 @@ export const createConnectToken = (connectData: any, method: string, createTicke
   const params = createTicket ? '?create_ticket=1' : '';
   const url = '/api/v1/authentication/connection-token/' + params;
   // const _secret = encryptPassword(connectData.input_secret);
+  getSystemSetting().then(res => {
+    if (res) {
+      settingStore.setRdpClientOption(res.graphics!.rdp_client_option);
+      settingStore.setKeyboardLayout(res.graphics!.keyboard_layout);
+      settingStore.setRdpSmartSize(res.graphics!.rdp_smart_size);
+      settingStore.setRdpColorQuality(res.graphics!.rdp_color_quality);
+    }
+  });
   const data = {
     asset: connectData.asset,
     account: connectData.account,

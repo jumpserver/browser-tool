@@ -9,6 +9,7 @@ export const useSettingStore = defineStore('setting', {
     rdp_resolution: 'auto',
     keyboard_layout: 'en-us-qwerty',
     rdp_client_option: [],
+    rdp_connection_speed: 'auto',
     rdp_color_quality: '32',
     rdp_smart_size: '0'
   }),
